@@ -49,7 +49,10 @@ def imshow(img, title):
     img = (std * img) + mean 
     img = np.clip(img, 0, 1)
     plt.imshow(img)
-    plt.title(title)
+    if type(title) == list:
+        plt.title(title)
+    elif title is not None:
+        plt.title('Ground: ' + title['G'] + '\n' + 'Predicted: ' + title['P'] + '\n')
     
 images, labels = next(iter(dataloader['train']))
 title = [class_names[i] for i in labels]
@@ -151,3 +154,41 @@ model_fft = training_model(model_fft, criterion, optimizer_fft,
                             exp_lr_scheduler_fft, epochs = 30)
 torch.save(model_fft.state_dict(), os.path.join(path, 'model_FFT.pth'))  
 
+######################################################################################
+
+# Prediction done on sample images.
+
+sample_data = torchvision.datasets.ImageFolder('datasets/chest_xray/val', 
+                                               transform = data_trans['test'])
+
+sample_loader = torch.utils.data.DataLoader(sample_data, batch_size = 4,
+                                            shuffle = True, num_workers = 4)
+
+dataiter = iter(sample_loader)
+images, labels = next(dataiter) 
+
+images = images.to(device)
+labels = labels.to(device)
+
+sample_model = models.resnet50(pretrained = True)
+for para in sample_model.parameters():
+    para.require_grad = False
+
+features = sample_model.fc.in_features
+sample_model.fc = nn.Linear(features, 2)
+sample_model = sample_model.to(device)
+
+sample_model.load_state_dict(torch.load('datasets/chest_xray/model_FFT.pth'))
+
+
+sample_output = sample_model(images)
+_, sample_pred = torch.max(sample_output, 1)
+title = {'P' : ' '.join(class_names[sample_pred[j]] for j in range(4)),
+         'G' : ' '.join(class_names[labels[j]] for j in range(4))}
+
+%matplotlib auto
+imshow(torchvision.utils.make_grid(images.cpu()), title)
+
+
+   
+    
